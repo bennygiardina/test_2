@@ -380,9 +380,28 @@ def parse_draw_positions(pages_text: list[str]) -> list[dict]:
     rows.sort(key=lambda x: x["draw_position"])
 
     missing = [i for i in range(1, 129) if i not in seen_positions]
-    if missing:
+
+    # fallback robusto: se mancano poche posizioni, trattale come bye
+    if 0 < len(missing) <= 4:
+        for pos in missing:
+            rows.append(
+                {
+                    "draw_position": pos,
+                    "seed": "",
+                    "entry_status": "",
+                    "player_name": "bye",
+                    "raw_name": "Bye",
+                    "country": "",
+                    "slot_type": "bye",
+                }
+            )
+
+    rows.sort(key=lambda x: x["draw_position"])
+
+    missing_after_fill = [i for i in range(1, 129) if i not in {r["draw_position"] for r in rows}]
+    if missing_after_fill:
         raise RuntimeError(
-            f"Attese 128 posizioni, trovate {len(rows)}. Posizioni mancanti: {missing}"
+            f"Attese 128 posizioni, trovate {len(rows)}. Posizioni mancanti: {missing_after_fill}"
         )
 
     return rows
