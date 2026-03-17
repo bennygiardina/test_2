@@ -364,8 +364,6 @@ def parse_draw_positions(pages_text: list[str]) -> list[dict]:
 
         for line in lines:
             candidate_lines = split_combined_draw_line(line)
-            if len(candidate_lines) > 1:
-    print(f"Riga spezzata: {line}", flush=True)
 
             for candidate in candidate_lines:
                 parsed = parse_draw_line(candidate)
