@@ -334,20 +334,30 @@ def line_starts_round_header(line: str) -> bool:
 def parse_draw_positions(pages_text: list[str]) -> list[dict]:
     rows: list[dict] = []
     seen_positions: set[int] = set()
+
     for page_text in pages_text:
-        lines = clean_lines(page_text)
+        lines = extract_draw_block_lines(page_text)
+
         for line in lines:
             parsed = parse_draw_line(line)
             if not parsed:
                 continue
+
             pos = parsed["draw_position"]
             if pos in seen_positions:
                 continue
+
             seen_positions.add(pos)
             rows.append(parsed)
+
     rows.sort(key=lambda x: x["draw_position"])
-    if len(rows) != 128:
-        raise RuntimeError(f"Attese 128 posizioni, trovate {len(rows)}")
+
+    missing = [i for i in range(1, 129) if i not in seen_positions]
+    if missing:
+        raise RuntimeError(
+            f"Attese 128 posizioni, trovate {len(rows)}. Posizioni mancanti: {missing}"
+        )
+
     return rows
 
 
