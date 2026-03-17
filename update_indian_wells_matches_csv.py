@@ -489,7 +489,6 @@ def fetch_and_build_rows(draw_page_url: str, fallback_pdf_url: str) -> tuple[lis
     pdf_resp.raise_for_status()
     pdf_bytes = pdf_resp.content
     pages_text = extract_pdf_text(pdf_bytes)
-    debug_relevant_lines(pages_text)
     released_at = extract_released_at(pages_text)
     positions = parse_draw_positions(pages_text)
     rows = build_match_rows(positions)
