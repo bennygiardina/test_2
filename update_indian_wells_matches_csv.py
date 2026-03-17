@@ -641,84 +641,44 @@ def parse_results_page(html: str) -> list[dict]:
 
     completed_matches: list[dict] = []
 
-    round_keywords = [
-        "Final",
-        "Semifinals",
-        "Quarterfinals",
-        "Round of 16",
-        "Round of 32",
-        "Round of 64",
-        "Round of 128",
-    ]
+    round_map = {
+        "Final": "Finale",
+        "Semifinals": "Semifinali",
+        "Quarterfinals": "Quarti di finale",
+        "Round of 16": "4° turno",
+        "Round of 32": "3° turno",
+        "Round of 64": "2° turno",
+        "Round of 128": "1° turno",
+    }
 
     def detect_round(line: str) -> str:
-        for rnd in round_keywords:
-            if line.startswith(rnd):
-                return map_results_round_label(rnd)
+        for key, value in round_map.items():
+            if line.startswith(key):
+                return value
         return ""
 
-    def is_player_candidate(line: str) -> bool:
-        if not line:
-            return False
-
-        # scarta rumore evidente
-        noise_prefixes = (
-            "Ump:",
-            "Game Set and Match ",
-            "#### ",
+    def parse_player_line(line: str) -> tuple[str, str] | None:
+        # Caso ATP estratto come:
+        #  (2)
+        #  (Q)
+        m = re.match(
+            r"^【\d+†([^】]+)】(?:\s+\((\d+|Q|WC|LL|PR)\))?$",
+            line
         )
-        if line.startswith(noise_prefixes):
-            return False
+        if m:
+            return m.group(1).strip(), (m.group(2) or "").strip()
 
-        noise_exact = {
-            "H2H",
-            "Stats",
-            "Print",
-            "Refresh",
-            "Live",
-            "Results",
-            "Schedule",
-            "Draws",
-            "Seeds",
-            "ATP Tour",
-            "Indian Wells",
-            "BNP Paribas Open",
-            "CA, U.S.A.",
-        }
-        if line in noise_exact:
-            return False
+        # Fallback plain text:
+        # Jannik Sinner (2)
+        # Alex Michelsen
+        m = re.match(
+            r"^([A-Z][A-Za-zÀ-ÿ'’.\-]+(?:\s+[A-Z][A-Za-zÀ-ÿ'’.\-]+)+)(?:\s+\((\d+|Q|WC|LL|PR)\))?$",
+            line
+        )
+        if m:
+            return m.group(1).strip(), (m.group(2) or "").strip()
 
-        if detect_round(line):
-            return False
-
-        # righe solo numeriche / score parziali
-        if re.fullmatch(r"[0-9()\-\s]+", line):
-            return False
-
-        # venue / day lines
-        if " - Stadium " in line:
-            return False
-        if "Day (" in line:
-            return False
-
-        # deve contenere almeno una lettera
-        if not re.search(r"[A-Za-zÀ-ÿ]", line):
-            return False
-
-        # elimina tag finali ATP tipo "(2)" "(Q)"
-        tmp = re.sub(r"\s+\((\d+|Q|WC|LL|PR)\)$", "", line).strip()
-
-        # niente stringhe troppo corte
-        if len(tmp.split()) < 2:
-            return False
-
-        return True
-
-    def parse_player_line(line: str) -> tuple[str, str]:
-        tag_match = re.search(r"\((\d+|Q|WC|LL|PR)\)$", line)
-        tag = tag_match.group(1) if tag_match else ""
-        name = re.sub(r"\s+\((\d+|Q|WC|LL|PR)\)$", "", line).strip()
-        return name, tag
+        return None
 
     current_round = ""
 
@@ -731,12 +691,9 @@ def parse_results_page(html: str) -> list[dict]:
         if not current_round:
             continue
 
-        if not line.startswith("Game Set and Match "):
-            continue
-
         m_score = re.match(
-            r"^Game Set and Match ([^.]+)\.\s+.* wins the match\s+(.+?)\.$",
-            line,
+            r"^Game Set and Match ([^.]+)\.\s+.* wins the match\s+(.+?)\.\s*$",
+            line
         )
         if not m_score:
             continue
@@ -745,14 +702,13 @@ def parse_results_page(html: str) -> list[dict]:
         scoreline = m_score.group(2).strip()
         a_sets, b_sets = set_wins_from_scoreline(scoreline)
 
-        # guarda indietro e prendi gli ultimi 2 player validi prima della scoreline
         players_found: list[tuple[str, str]] = []
-        for j in range(max(0, i - 20), i):
-            candidate = lines[j]
-            if not is_player_candidate(candidate):
-                continue
 
-            parsed = parse_player_line(candidate)
+        # guarda indietro fino a 20 righe prima della scoreline
+        for j in range(max(0, i - 20), i):
+            parsed = parse_player_line(lines[j])
+            if not parsed:
+                continue
 
             # evita duplicati consecutivi
             if players_found and players_found[-1] == parsed:
