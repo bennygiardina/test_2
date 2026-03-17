@@ -425,9 +425,15 @@ def parse_draw_positions(pages_text: list[str]) -> list[dict]:
 def build_match_rows(positions: list[dict]) -> list[dict]:
     current: list[dict] = []
     for p in positions:
-        current.append({"name": p["player_name"], "slot_type": p["slot_type"]})
+        current.append(
+            {
+                "name": p["player_name"] if p["player_name"] else "TBD",
+                "slot_type": p["slot_type"],
+            }
+        )
 
     match_rows: list[dict] = []
+
     while len(current) > 1:
         round_size = len(current) // 2
         round_label = ROUND_LABELS[round_size]
@@ -436,16 +442,25 @@ def build_match_rows(positions: list[dict]) -> list[dict]:
         for i in range(0, len(current), 2):
             a = current[i]
             b = current[i + 1]
-            a_name = a["name"]
-            b_name = b["name"]
-            winner = ""
 
-            if a_name == "bye" and b_name and b_name != "bye":
+            a_name = a["name"] if a["name"] else "TBD"
+            b_name = b["name"] if b["name"] else "TBD"
+
+            a_type = a.get("slot_type", "")
+            b_type = b.get("slot_type", "")
+
+            winner = ""
+            next_name = "TBD"
+            next_type = "unknown"
+
+            if a_type == "bye" and b_name not in {"", "bye", "TBD"}:
                 winner = b_name
-            elif b_name == "bye" and a_name and a_name != "bye":
+                next_name = b_name
+                next_type = "player"
+            elif b_type == "bye" and a_name not in {"", "bye", "TBD"}:
                 winner = a_name
-            elif a_name == "bye" and b_name == "bye":
-                winner = ""
+                next_name = a_name
+                next_type = "player"
 
             match_rows.append(
                 {
@@ -457,7 +472,13 @@ def build_match_rows(positions: list[dict]) -> list[dict]:
                     "Participant B score": "",
                 }
             )
-            next_round.append({"name": winner, "slot_type": "player" if winner else "unknown"})
+
+            next_round.append(
+                {
+                    "name": next_name,
+                    "slot_type": next_type,
+                }
+            )
 
         current = next_round
 
@@ -498,6 +519,9 @@ def fetch_and_build_rows(draw_page_url: str, fallback_pdf_url: str, results_page
 
     results_html = fetch_results_page(results_page_url)
     completed_matches = parse_results_page(results_html)
+   
+    rows = apply_results_to_match_rows(rows, completed_matches)
+    rows = propagate_winners_through_bracket(rows)
     rows = apply_results_to_match_rows(rows, completed_matches)
 
     meta = {
@@ -710,6 +734,75 @@ def apply_results_to_match_rows(match_rows: list[dict], completed_matches: list[
             break
 
     return match_rows
+
+def propagate_winners_through_bracket(match_rows: list[dict]) -> list[dict]:
+    round_order = [
+        "1° turno",
+        "2° turno",
+        "3° turno",
+        "4° turno",
+        "Quarti di finale",
+        "Semifinali",
+        "Finale",
+    ]
+
+    rows_by_round: dict[str, list[dict]] = {rnd: [] for rnd in round_order}
+    for row in match_rows:
+        rows_by_round[row["Round"]].append(row)
+
+    for rnd in round_order:
+        if rnd not in rows_by_round:
+            continue
+
+    for i in range(len(round_order) - 1):
+        current_round = round_order[i]
+        next_round = round_order[i + 1]
+
+        current_rows = rows_by_round.get(current_round, [])
+        next_rows = rows_by_round.get(next_round, [])
+
+        if not current_rows or not next_rows:
+            continue
+
+        winners = []
+        for row in current_rows:
+            winner = (row.get("Winner") or "").strip()
+
+            # se non c'è un winner esplicito ma c'è un bye vero, fallo avanzare
+            if not winner:
+                a = (row.get("Player A") or "").strip()
+                b = (row.get("Player B") or "").strip()
+
+                if a == "bye" and b not in {"", "bye", "TBD"}:
+                    winner = b
+                elif b == "bye" and a not in {"", "bye", "TBD"}:
+                    winner = a
+
+            winners.append(winner if winner else "TBD")
+
+        # assegna i vincitori ai match del round successivo
+        for j, next_row in enumerate(next_rows):
+            a_idx = j * 2
+            b_idx = j * 2 + 1
+
+            if a_idx < len(winners):
+                next_row["Player A"] = winners[a_idx]
+            if b_idx < len(winners):
+                next_row["Player B"] = winners[b_idx]
+
+            # reset winner/score del round successivo, poi verranno eventualmente riempiti
+            if not next_row.get("Winner"):
+                next_row["Winner"] = ""
+            if next_row.get("Participant A score") in (None,):
+                next_row["Participant A score"] = ""
+            if next_row.get("Participant B score") in (None,):
+                next_row["Participant B score"] = ""
+
+    rebuilt_rows: list[dict] = []
+    for rnd in round_order:
+        rebuilt_rows.extend(rows_by_round.get(rnd, []))
+
+    return rebuilt_rows
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Genera un CSV match-by-match dal draw ATP ufficiale.")
