@@ -303,6 +303,34 @@ def parse_draw_line(line: str) -> dict | None:
         display_name = "bye"
         slot_type = "bye"
 
+def extract_draw_block_lines(page_text: str) -> list[str]:
+    lines = clean_lines(page_text)
+
+    start_idx = None
+    end_idx = None
+
+    for i, line in enumerate(lines):
+        if "Main Draw Singles" in line:
+            start_idx = i + 1
+            break
+
+    if start_idx is None:
+        return []
+
+    for i in range(start_idx, len(lines)):
+        if line_starts_round_header(lines[i]):
+            end_idx = i
+            break
+
+    if end_idx is None:
+        end_idx = len(lines)
+
+    return lines[start_idx:end_idx]
+
+
+def line_starts_round_header(line: str) -> bool:
+    return line.strip().startswith("Round of 128")
+    
 def parse_draw_positions(pages_text: list[str]) -> list[dict]:
     rows: list[dict] = []
     seen_positions: set[int] = set()
