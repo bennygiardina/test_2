@@ -330,6 +330,30 @@ def extract_draw_block_lines(page_text: str) -> list[str]:
 
 def line_starts_round_header(line: str) -> bool:
     return line.strip().startswith("Round of 128")
+
+def split_combined_draw_line(line: str) -> list[str]:
+    line = line.strip()
+    if not line:
+        return []
+
+    # cerca tutti gli inizi plausibili di una posizione draw:
+    # numero 1-128 seguito da spazio e testo tipo Bye / Qualifier / nome giocatore
+    starts = list(
+        re.finditer(r"(?<!\S)(\d{1,3})(?=\s+(?:Bye|Qualifier|[A-Z]))", line)
+    )
+
+    if len(starts) <= 1:
+        return [line]
+
+    chunks = []
+    for i, match in enumerate(starts):
+        start = match.start()
+        end = starts[i + 1].start() if i + 1 < len(starts) else len(line)
+        chunk = line[start:end].strip()
+        if chunk:
+            chunks.append(chunk)
+
+    return chunks
     
 def parse_draw_positions(pages_text: list[str]) -> list[dict]:
     rows: list[dict] = []
@@ -339,16 +363,19 @@ def parse_draw_positions(pages_text: list[str]) -> list[dict]:
         lines = extract_draw_block_lines(page_text)
 
         for line in lines:
-            parsed = parse_draw_line(line)
-            if not parsed:
-                continue
+            candidate_lines = split_combined_draw_line(line)
 
-            pos = parsed["draw_position"]
-            if pos in seen_positions:
-                continue
+            for candidate in candidate_lines:
+                parsed = parse_draw_line(candidate)
+                if not parsed:
+                    continue
 
-            seen_positions.add(pos)
-            rows.append(parsed)
+                pos = parsed["draw_position"]
+                if pos in seen_positions:
+                    continue
+
+                seen_positions.add(pos)
+                rows.append(parsed)
 
     rows.sort(key=lambda x: x["draw_position"])
 
