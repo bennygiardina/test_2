@@ -342,14 +342,6 @@ def extract_draw_block_lines(page_text: str) -> list[str]:
 
     return lines[start_idx:end_idx]
 
-def debug_relevant_lines(pages_text: list[str]) -> None:
-    keywords = ["107", "125", "Duckworth", "Svrcina", "Sinner"]
-    for page_no, page_text in enumerate(pages_text, start=1):
-        lines = clean_lines(page_text)
-        for line in lines:
-            if any(k.lower() in line.lower() for k in keywords):
-                print(f"[DEBUG page {page_no}] {line}", flush=True)
-
 def line_starts_round_header(line: str) -> bool:
     return line.strip().startswith("Round of 128")
 
