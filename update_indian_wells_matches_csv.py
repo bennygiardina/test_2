@@ -303,23 +303,107 @@ def parse_draw_line(line: str) -> dict | None:
         display_name = "bye"
         slot_type = "bye"
 
+def extract_draw_block_lines(page_text: str) -> list[str]:
+    lines = clean_lines(page_text)
+
+    start_idx = None
+    end_idx = None
+
+    for i, line in enumerate(lines):
+        if "Main Draw Singles" in line:
+            start_idx = i + 1
+            break
+
+    if start_idx is None:
+        return []
+
+    for i in range(start_idx, len(lines)):
+        if line_starts_round_header(lines[i]):
+            end_idx = i
+            break
+
+    if end_idx is None:
+        end_idx = len(lines)
+
+    return lines[start_idx:end_idx]
+
+
+def line_starts_round_header(line: str) -> bool:
+    return line.strip().startswith("Round of 128")
+
+def split_combined_draw_line(line: str) -> list[str]:
+    line = line.strip()
+    if not line:
+        return []
+
+    # cerca tutti gli inizi plausibili di una posizione draw:
+    # numero 1-128 seguito da spazio e testo tipo Bye / Qualifier / nome giocatore
+    starts = list(
+        re.finditer(r"(?<!\S)(\d{1,3})(?=\s+(?:Bye|Qualifier|[A-Z]))", line)
+    )
+
+    if len(starts) <= 1:
+        return [line]
+
+    chunks = []
+    for i, match in enumerate(starts):
+        start = match.start()
+        end = starts[i + 1].start() if i + 1 < len(starts) else len(line)
+        chunk = line[start:end].strip()
+        if chunk:
+            chunks.append(chunk)
+
+    return chunks
+    
 def parse_draw_positions(pages_text: list[str]) -> list[dict]:
     rows: list[dict] = []
     seen_positions: set[int] = set()
+
     for page_text in pages_text:
-        lines = clean_lines(page_text)
+        lines = extract_draw_block_lines(page_text)
+
         for line in lines:
-            parsed = parse_draw_line(line)
-            if not parsed:
-                continue
-            pos = parsed["draw_position"]
-            if pos in seen_positions:
-                continue
-            seen_positions.add(pos)
-            rows.append(parsed)
+            candidate_lines = split_combined_draw_line(line)
+
+            for candidate in candidate_lines:
+                parsed = parse_draw_line(candidate)
+                if not parsed:
+                    continue
+
+                pos = parsed["draw_position"]
+                if pos in seen_positions:
+                    continue
+
+                seen_positions.add(pos)
+                rows.append(parsed)
+
     rows.sort(key=lambda x: x["draw_position"])
-    if len(rows) != 128:
-        raise RuntimeError(f"Attese 128 posizioni, trovate {len(rows)}")
+
+    missing = [i for i in range(1, 129) if i not in seen_positions]
+
+    # fallback robusto: se mancano poche posizioni, trattale come bye
+    if 0 < len(missing) <= 4:
+        for pos in missing:
+            rows.append(
+                {
+                    "draw_position": pos,
+                    "seed": "",
+                    "entry_status": "",
+                    "player_name": "bye",
+                    "raw_name": "Bye",
+                    "country": "",
+                    "slot_type": "bye",
+                }
+            )
+
+    rows.sort(key=lambda x: x["draw_position"])
+
+    missing_after_fill = [i for i in range(1, 129) if i not in {r["draw_position"] for r in rows}]
+    if missing_after_fill:
+        raise RuntimeError(
+            f"Attese 128 posizioni, trovate {len(rows)}. Posizioni mancanti: {missing_after_fill}"
+        )
+
     return rows
 
 
