@@ -519,6 +519,19 @@ def fetch_and_build_rows(draw_page_url: str, fallback_pdf_url: str, results_page
 
     results_html = fetch_results_page(results_page_url)
     completed_matches = parse_results_page(results_html)
+    soup = BeautifulSoup(results_html, "html.parser")
+    debug_text = unicodedata.normalize("NFKC", soup.get_text("\n", strip=True))
+    debug_lines = [line.strip() for line in debug_text.splitlines() if line.strip()]
+
+    print(f"[DEBUG] first Game Set lines:", flush=True)
+    count = 0
+    for line in debug_lines:
+        if "Game Set and Match" in line or "Round of 16" in line or "Quarterfinals" in line or "Semifinals" in line or "Final -" in line:
+            print(f"[DEBUG] {line}", flush=True)
+            count += 1
+            if count >= 20:
+                break
+
     print(f"[DEBUG] completed_matches={len(completed_matches)}", flush=True)
     for m in completed_matches[:10]:
         print(f"[DEBUG] {m}", flush=True)
@@ -634,9 +647,12 @@ def map_results_round_label(atp_round: str) -> str:
     return mapping.get(atp_round.strip(), atp_round.strip())
 
 
+import unicodedata
+
 def parse_results_page(html: str) -> list[dict]:
     soup = BeautifulSoup(html, "html.parser")
     text = soup.get_text("\n", strip=True)
+    text = unicodedata.normalize("NFKC", text)
     lines = [line.strip() for line in text.splitlines() if line.strip()]
 
     completed_matches: list[dict] = []
@@ -658,23 +674,15 @@ def parse_results_page(html: str) -> list[dict]:
         return ""
 
     def parse_player_line(line: str) -> tuple[str, str] | None:
-        # Caso ATP estratto come:
+        # formato ATP reale:
         #  (2)
         #  (Q)
-        m = re.match(
-            r"^【\d+†([^】]+)】(?:\s+\((\d+|Q|WC|LL|PR)\))?$",
-            line
-        )
+        m = re.match(r"^【\d+†([^】]+)】(?:\s+\((\d+|Q|WC|LL|PR)\))?$", line)
         if m:
             return m.group(1).strip(), (m.group(2) or "").strip()
 
-        # Fallback plain text:
-        # Jannik Sinner (2)
-        # Alex Michelsen
-        m = re.match(
-            r"^([A-Z][A-Za-zÀ-ÿ'’.\-]+(?:\s+[A-Z][A-Za-zÀ-ÿ'’.\-]+)+)(?:\s+\((\d+|Q|WC|LL|PR)\))?$",
-            line
-        )
+        # fallback plain text
+        m = re.match(r"^([A-Z][A-Za-zÀ-ÿ'’.\-]+(?:\s+[A-Z][A-Za-zÀ-ÿ'’.\-]+)+)(?:\s+\((\d+|Q|WC|LL|PR)\))?$", line)
         if m:
             return m.group(1).strip(), (m.group(2) or "").strip()
 
@@ -691,29 +699,26 @@ def parse_results_page(html: str) -> list[dict]:
         if not current_round:
             continue
 
+        # match conclusi con riga "Game Set and Match ..."
         m_score = re.match(
-            r"^Game Set and Match ([^.]+)\.\s+.* wins the match\s+(.+?)\.\s*$",
+            r"^Game Set and Match ([^.]+)\.\s+.* wins the match\s+([0-9\-\(\)\s]+)\.\s*$",
             line
         )
         if not m_score:
             continue
 
         winner_name = m_score.group(1).strip()
-        scoreline = m_score.group(2).strip()
+        scoreline = re.sub(r"\s+", " ", m_score.group(2)).strip()
         a_sets, b_sets = set_wins_from_scoreline(scoreline)
 
+        # cerca gli ultimi 2 giocatori validi prima della scoreline
         players_found: list[tuple[str, str]] = []
-
-        # guarda indietro fino a 20 righe prima della scoreline
-        for j in range(max(0, i - 20), i):
+        for j in range(max(0, i - 25), i):
             parsed = parse_player_line(lines[j])
             if not parsed:
                 continue
-
-            # evita duplicati consecutivi
             if players_found and players_found[-1] == parsed:
                 continue
-
             players_found.append(parsed)
 
         if len(players_found) < 2:
