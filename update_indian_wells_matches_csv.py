@@ -17,6 +17,7 @@ from bs4 import BeautifulSoup
 from pypdf import PdfReader
 
 DEFAULT_DRAW_PAGE = "https://www.atptour.com/en/scores/current/indian-wells/404/draws"
+DEFAULT_RESULTS_PAGE = "https://www.atptour.com/en/scores/current/atp-masters-1000-indian-wells/404/results"
 DEFAULT_FALLBACK_PDF = "https://www.protennislive.com/posting/{year}/{tournament_id}/mds.pdf"
 DEFAULT_TOURNAMENT_ID = "404"
 LOWERCASE_PARTICLES = {
@@ -525,6 +526,73 @@ def run_once(output_path: Path, draw_page_url: str, tournament_id: str) -> bool:
     )
     return changed
 
+def set_wins_from_scoreline(scoreline: str) -> tuple[int, int]:
+    a_sets = 0
+    b_sets = 0
+
+    # esempi ATP:
+    # "6-2 6-4"
+    # "4-6 6-4 7-6(5)"
+    # "7-6(6) 7-6(4)"
+    parts = [p.strip() for p in scoreline.split() if "-" in p]
+
+    for part in parts:
+        clean = re.sub(r"\(.*?\)", "", part)  # toglie il tiebreak, es. 7-6(5) -> 7-6
+        m = re.match(r"^(\d+)-(\d+)$", clean)
+        if not m:
+            continue
+
+        a_games = int(m.group(1))
+        b_games = int(m.group(2))
+
+        if a_games > b_games:
+            a_sets += 1
+        elif b_games > a_games:
+            b_sets += 1
+
+    return a_sets, b_sets
+
+def normalize_name_for_matching(name: str) -> str:
+    n = (name or "").lower().strip()
+    n = re.sub(r"\[[^\]]+\]", "", n)   # toglie [1], [Q], [WC]
+    n = n.replace(".", "")
+    n = n.replace(",", "")
+    n = re.sub(r"\s+", " ", n)
+    return n.strip()
+
+def fetch_results_page(results_page_url: str) -> str:
+    resp = requests.get(results_page_url, timeout=30)
+    resp.raise_for_status()
+    return resp.text
+
+def apply_results_to_match_rows(match_rows: list[dict], completed_matches: list[dict]) -> list[dict]:
+    for row in match_rows:
+        row_a = normalize_name_for_matching(row["Player A"])
+        row_b = normalize_name_for_matching(row["Player B"])
+        row_round = row["Round"]
+
+        for result in completed_matches:
+            res_a = normalize_name_for_matching(result["player_a"])
+            res_b = normalize_name_for_matching(result["player_b"])
+            res_round = result["round"]
+
+            # match nello stesso round e con stessi due giocatori,
+            # indipendentemente dall'ordine
+            same_players = {row_a, row_b} == {res_a, res_b}
+            if row_round == res_round and same_players:
+                # se l'ordine del risultato ATP coincide
+                if row_a == res_a and row_b == res_b:
+                    row["Winner"] = result["winner"]
+                    row["Participant A score"] = result["a_sets"]
+                    row["Participant B score"] = result["b_sets"]
+                else:
+                    # se ATP li presenta invertiti
+                    row["Winner"] = result["winner"]
+                    row["Participant A score"] = result["b_sets"]
+                    row["Participant B score"] = result["a_sets"]
+                break
+
+    return match_rows
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Genera un CSV match-by-match dal draw ATP ufficiale.")
