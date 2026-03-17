@@ -519,6 +519,9 @@ def fetch_and_build_rows(draw_page_url: str, fallback_pdf_url: str, results_page
 
     results_html = fetch_results_page(results_page_url)
     completed_matches = parse_results_page(results_html)
+    print(f"[DEBUG] completed_matches={len(completed_matches)}", flush=True)
+    for m in completed_matches[:10]:
+        print(f"[DEBUG] {m}", flush=True)
    
     rows = apply_results_to_match_rows(rows, completed_matches)
     rows = propagate_winners_through_bracket(rows)
@@ -631,91 +634,102 @@ def map_results_round_label(atp_round: str) -> str:
 
 
 def parse_results_page(html: str) -> list[dict]:
-    lines = [line.strip() for line in html.splitlines() if line.strip()]
+    soup = BeautifulSoup(html, "html.parser")
+    text = soup.get_text("\n", strip=True)
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+
     completed_matches: list[dict] = []
-
     current_round = ""
-    i = 0
 
-    while i < len(lines):
-        line = lines[i]
+    round_pattern = re.compile(
+        r"^(Final|Semifinals|Quarterfinals|Round of 16|Round of 32|Round of 64|Round of 128)\b"
+    )
 
-        # round ATP
-        if re.match(r"^(Final|Semifinals|Quarterfinals|Round of 16|Round of 32|Round of 64|Round of 128)\b", line):
-            current_round = map_results_round_label(re.match(
-                r"^(Final|Semifinals|Quarterfinals|Round of 16|Round of 32|Round of 64|Round of 128)\b",
-                line
-            ).group(1))
-            i += 1
+    player_pattern = re.compile(
+        r"^([A-Z][A-Za-zÀ-ÿ'’.\-]+(?:\s+[A-Z][A-Za-zÀ-ÿ'’.\-]+)+)(?:\s+\((\d+|Q|WC|LL|PR)\))?$"
+    )
+
+    scoreline_pattern = re.compile(
+        r"^Game Set and Match ([^.]+)\.\s+.* wins the match (.+?)\.$"
+    )
+
+    current_players: list[tuple[str, str]] = []
+
+    def is_noise(line: str) -> bool:
+        if not line:
+            return True
+        if line.startswith("####"):
+            return True
+        if line.startswith("Ump:"):
+            return True
+        if line in {"H2H", "Stats", "Print", "Refresh", "Live", "Results", "Schedule", "Draws", "Seeds"}:
+            return True
+        if re.fullmatch(r"\d+", line):
+            return True
+        if re.fullmatch(r"[0-9()\-\s]+", line):
+            return True
+        if "Day (" in line:
+            return True
+        if " - Stadium " in line:
+            return True
+        return False
+
+    for line in lines:
+        m_round = round_pattern.match(line)
+        if m_round:
+            current_round = map_results_round_label(m_round.group(1))
+            current_players = []
             continue
 
-        # giocatore ATP: es.  (2)
-        m1 = re.match(r"^【\d+†([^】]+)】(?:\s+\((\d+|Q|WC|LL|PR)\))?$", line)
-        if m1 and current_round:
-            player1 = m1.group(1).strip()
-            player1_tag = m1.group(2) or ""
-
-            # cerca scoreline riga "Game Set and Match ..."
-            player2 = ""
-            player2_tag = ""
-            scoreline = ""
-            winner_name = ""
-
-            # cerca il secondo player e la frase finale nelle righe successive
-            j = i + 1
-            found_second_player = False
-
-            while j < len(lines):
-                line2 = lines[j]
-
-                # secondo player
-                m2 = re.match(r"^【\d+†([^】]+)】(?:\s+\((\d+|Q|WC|LL|PR)\))?$", line2)
-                if m2 and not found_second_player:
-                    player2 = m2.group(1).strip()
-                    player2_tag = m2.group(2) or ""
-                    found_second_player = True
-                    j += 1
-                    continue
-
-                # frase match concluso
-                m_score = re.match(
-                    r"^Game Set and Match ([^.]+)\. .* wins the match (.+?)\.$",
-                    line2
-                )
-                if m_score and found_second_player:
-                    winner_name = m_score.group(1).strip()
-                    scoreline = m_score.group(2).strip()
-                    break
-
-                # se trovi un nuovo round o un nuovo blocco giorno, fermati
-                if re.match(r"^####\s", line2):
-                    break
-                if re.match(r"^(Final|Semifinals|Quarterfinals|Round of 16|Round of 32|Round of 64|Round of 128)\b", line2):
-                    break
-
-                j += 1
-
-            if player1 and player2 and scoreline:
-                a_sets, b_sets = set_wins_from_scoreline(scoreline)
-
-                # formatta i nomi come nel tuo CSV
-                completed_matches.append(
-                    {
-                        "round": current_round,
-                        "player_a": player1,
-                        "player_b": player2,
-                        "player_a_tag": player1_tag,
-                        "player_b_tag": player2_tag,
-                        "winner": winner_name,
-                        "a_sets": a_sets,
-                        "b_sets": b_sets,
-                    }
-                )
-
-            i = j
+        if not current_round:
             continue
 
-        i += 1
+        if is_noise(line):
+            continue
+
+        m_score = scoreline_pattern.match(line)
+        if m_score and len(current_players) >= 2:
+            winner_name = m_score.group(1).strip()
+            scoreline = m_score.group(2).strip()
+            a_sets, b_sets = set_wins_from_scoreline(scoreline)
+
+            player1, player1_tag = current_players[0]
+            player2, player2_tag = current_players[1]
+
+            completed_matches.append(
+                {
+                    "round": current_round,
+                    "player_a": player1,
+                    "player_b": player2,
+                    "player_a_tag": player1_tag,
+                    "player_b_tag": player2_tag,
+                    "winner": winner_name,
+                    "a_sets": a_sets,
+                    "b_sets": b_sets,
+                }
+            )
+
+            current_players = []
+            continue
+
+        m_player = player_pattern.match(line)
+        if m_player:
+            player_name = m_player.group(1).strip()
+            player_tag = (m_player.group(2) or "").strip()
+
+            # evita falsi positivi tipo "Indian Wells", "ATP Tour", ecc.
+            if player_name in {
+                "ATP Tour", "Indian Wells", "CA U.S.A", "BNP Paribas Open"
+            }:
+                continue
+
+            # evita duplicati consecutivi
+            if current_players and current_players[-1][0] == player_name:
+                continue
+
+            if len(current_players) < 2:
+                current_players.append((player_name, player_tag))
+            continue
 
     return completed_matches
 
