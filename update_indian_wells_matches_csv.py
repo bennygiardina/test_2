@@ -223,17 +223,29 @@ def is_fake_player_line(text: str) -> bool:
     return False
 
 def parse_draw_line(line: str) -> dict | None:
+    line = line.strip()
+    if not line:
+        return None
+
+    # Caso 1: formato normale "107 WC NAME ..."
     m = re.match(r"^(\d{1,3})\s+(.*)$", line)
+
+    # Caso 2: formato compatto "107WC NAME ..." oppure "125Q NAME ..."
     if not m:
-        return None
+        m = re.match(r"^(\d{1,3})(WC|PR|Q|LL)\s+(.*)$", line)
+        if m:
+            position = int(m.group(1))
+            if not (1 <= position <= 128):
+                return None
+            rest = f"{m.group(2)} {m.group(3)}".strip()
+        else:
+            return None
+    else:
+        position = int(m.group(1))
+        if not (1 <= position <= 128):
+            return None
+        rest = m.group(2).strip()
 
-    position = int(m.group(1))
-    if not (1 <= position <= 128):
-        return None
-
-    rest = m.group(2).strip()
-
-    # intercetta metadata (tipo "March — 29 March 2026 | USD ...")
     if is_tournament_metadata(rest):
         return {
             "draw_position": position,
@@ -280,6 +292,9 @@ def parse_draw_line(line: str) -> dict | None:
             country = tokens.pop()
 
         raw_name = " ".join(tokens)
+
+        # gestisce "SINNER, Jannik" -> "SINNER Jannik"
+        raw_name = raw_name.replace(",", "")
 
         display_name = format_name(
             raw_name,
