@@ -484,22 +484,31 @@ def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def fetch_and_build_rows(draw_page_url: str, fallback_pdf_url: str) -> tuple[list[dict], dict]:
+def fetch_and_build_rows(draw_page_url: str, fallback_pdf_url: str, results_page_url: str) -> tuple[list[dict], dict]:
     pdf_url = discover_pdf_url(draw_page_url, fallback_pdf_url)
     pdf_resp = requests.get(pdf_url, timeout=60)
     pdf_resp.raise_for_status()
     pdf_bytes = pdf_resp.content
+
     pages_text = extract_pdf_text(pdf_bytes)
     released_at = extract_released_at(pages_text)
+
     positions = parse_draw_positions(pages_text)
     rows = build_match_rows(positions)
+
+    results_html = fetch_results_page(results_page_url)
+    completed_matches = parse_results_page(results_html)
+    rows = apply_results_to_match_rows(rows, completed_matches)
+
     meta = {
         "source_draw_page": draw_page_url,
         "source_pdf": pdf_url,
+        "source_results_page": results_page_url,
         "released_at": released_at,
         "fetched_at": utc_now_iso(),
         "positions": len(positions),
         "matches": len(rows),
+        "completed_matches": len(completed_matches),
     }
     return rows, meta
 
@@ -511,17 +520,18 @@ def write_csv_if_changed(output_path: Path, data: bytes) -> bool:
     return True
 
 
-def run_once(output_path: Path, draw_page_url: str, tournament_id: str) -> bool:
+def run_once(output_path: Path, draw_page_url: str, tournament_id: str, results_page_url: str) -> bool:
     year = datetime.now().year
     fallback_pdf_url = DEFAULT_FALLBACK_PDF.format(year=year, tournament_id=tournament_id)
-    rows, meta = fetch_and_build_rows(draw_page_url, fallback_pdf_url)
+    rows, meta = fetch_and_build_rows(draw_page_url, fallback_pdf_url, results_page_url)
     data = csv_bytes(rows)
     changed = write_csv_if_changed(output_path, data)
 
     status = "AGGIORNATO" if changed else "NESSUNA MODIFICA"
     print(
         f"[{utc_now_iso()}] {status} | file={output_path} | matches={meta['matches']} | "
-        f"released_at={meta['released_at'] or 'n/d'} | sha256={sha256(data)[:12]} | pdf={meta['source_pdf']}",
+        f"completed={meta['completed_matches']} | released_at={meta['released_at'] or 'n/d'} | "
+        f"sha256={sha256(data)[:12]} | pdf={meta['source_pdf']}",
         flush=True,
     )
     return changed
@@ -530,14 +540,10 @@ def set_wins_from_scoreline(scoreline: str) -> tuple[int, int]:
     a_sets = 0
     b_sets = 0
 
-    # esempi ATP:
-    # "6-2 6-4"
-    # "4-6 6-4 7-6(5)"
-    # "7-6(6) 7-6(4)"
     parts = [p.strip() for p in scoreline.split() if "-" in p]
 
     for part in parts:
-        clean = re.sub(r"\(.*?\)", "", part)  # toglie il tiebreak, es. 7-6(5) -> 7-6
+        clean = re.sub(r"\(.*?\)", "", part)
         m = re.match(r"^(\d+)-(\d+)$", clean)
         if not m:
             continue
@@ -554,7 +560,7 @@ def set_wins_from_scoreline(scoreline: str) -> tuple[int, int]:
 
 def normalize_name_for_matching(name: str) -> str:
     n = (name or "").lower().strip()
-    n = re.sub(r"\[[^\]]+\]", "", n)   # toglie [1], [Q], [WC]
+    n = re.sub(r"\[[^\]]+\]", "", n)
     n = n.replace(".", "")
     n = n.replace(",", "")
     n = re.sub(r"\s+", " ", n)
@@ -564,6 +570,116 @@ def fetch_results_page(results_page_url: str) -> str:
     resp = requests.get(results_page_url, timeout=30)
     resp.raise_for_status()
     return resp.text
+
+
+def map_results_round_label(atp_round: str) -> str:
+    mapping = {
+        "Final": "Finale",
+        "Semifinals": "Semifinali",
+        "Quarterfinals": "Quarti di finale",
+        "Round of 16": "4° turno",
+        "Round of 32": "3° turno",
+        "Round of 64": "2° turno",
+        "Round of 128": "1° turno",
+    }
+    return mapping.get(atp_round.strip(), atp_round.strip())
+
+
+def parse_results_page(html: str) -> list[dict]:
+    lines = [line.strip() for line in html.splitlines() if line.strip()]
+    completed_matches: list[dict] = []
+
+    current_round = ""
+    i = 0
+
+    while i < len(lines):
+        line = lines[i]
+
+        # round ATP
+        if re.match(r"^(Final|Semifinals|Quarterfinals|Round of 16|Round of 32|Round of 64|Round of 128)\b", line):
+            current_round = map_results_round_label(re.match(
+                r"^(Final|Semifinals|Quarterfinals|Round of 16|Round of 32|Round of 64|Round of 128)\b",
+                line
+            ).group(1))
+            i += 1
+            continue
+
+        # giocatore ATP: es.  (2)
+        m1 = re.match(r"^【\d+†([^】]+)】(?:\s+\((\d+|Q|WC|LL|PR)\))?$", line)
+        if m1 and current_round:
+            player1 = m1.group(1).strip()
+            player1_tag = m1.group(2) or ""
+
+            # cerca scoreline riga "Game Set and Match ..."
+            player2 = ""
+            player2_tag = ""
+            scoreline = ""
+            winner_name = ""
+
+            # cerca il secondo player e la frase finale nelle righe successive
+            j = i + 1
+            found_second_player = False
+
+            while j < len(lines):
+                line2 = lines[j]
+
+                # secondo player
+                m2 = re.match(r"^【\d+†([^】]+)】(?:\s+\((\d+|Q|WC|LL|PR)\))?$", line2)
+                if m2 and not found_second_player:
+                    player2 = m2.group(1).strip()
+                    player2_tag = m2.group(2) or ""
+                    found_second_player = True
+                    j += 1
+                    continue
+
+                # frase match concluso
+                m_score = re.match(
+                    r"^Game Set and Match ([^.]+)\. .* wins the match (.+?)\.$",
+                    line2
+                )
+                if m_score and found_second_player:
+                    winner_name = m_score.group(1).strip()
+                    scoreline = m_score.group(2).strip()
+                    break
+
+                # se trovi un nuovo round o un nuovo blocco giorno, fermati
+                if re.match(r"^####\s", line2):
+                    break
+                if re.match(r"^(Final|Semifinals|Quarterfinals|Round of 16|Round of 32|Round of 64|Round of 128)\b", line2):
+                    break
+
+                j += 1
+
+            if player1 and player2 and scoreline:
+                a_sets, b_sets = set_wins_from_scoreline(scoreline)
+
+                # formatta i nomi come nel tuo CSV
+                p1_name = format_name(player1, entry_status=player1_tag if player1_tag in {"Q", "WC", "LL", "PR"} else "", seed=player1_tag if player1_tag.isdigit() else "")
+                p2_name = format_name(player2, entry_status=player2_tag if player2_tag in {"Q", "WC", "LL", "PR"} else "", seed=player2_tag if player2_tag.isdigit() else "")
+
+                winner_display = ""
+                if normalize_name_for_matching(player1) == normalize_name_for_matching(winner_name):
+                    winner_display = p1_name
+                elif normalize_name_for_matching(player2) == normalize_name_for_matching(winner_name):
+                    winner_display = p2_name
+
+                completed_matches.append(
+                    {
+                        "round": current_round,
+                        "player_a": p1_name,
+                        "player_b": p2_name,
+                        "winner": winner_display,
+                        "a_sets": a_sets,
+                        "b_sets": b_sets,
+                    }
+                )
+
+            i = j
+            continue
+
+        i += 1
+
+    return completed_matches
 
 def apply_results_to_match_rows(match_rows: list[dict], completed_matches: list[dict]) -> list[dict]:
     for row in match_rows:
@@ -576,21 +692,22 @@ def apply_results_to_match_rows(match_rows: list[dict], completed_matches: list[
             res_b = normalize_name_for_matching(result["player_b"])
             res_round = result["round"]
 
-            # match nello stesso round e con stessi due giocatori,
-            # indipendentemente dall'ordine
-            same_players = {row_a, row_b} == {res_a, res_b}
-            if row_round == res_round and same_players:
-                # se l'ordine del risultato ATP coincide
-                if row_a == res_a and row_b == res_b:
-                    row["Winner"] = result["winner"]
-                    row["Participant A score"] = result["a_sets"]
-                    row["Participant B score"] = result["b_sets"]
-                else:
-                    # se ATP li presenta invertiti
-                    row["Winner"] = result["winner"]
-                    row["Participant A score"] = result["b_sets"]
-                    row["Participant B score"] = result["a_sets"]
-                break
+            if row_round != res_round:
+                continue
+
+            if {row_a, row_b} != {res_a, res_b}:
+                continue
+
+            if row_a == res_a and row_b == res_b:
+                row["Winner"] = result["winner"]
+                row["Participant A score"] = result["a_sets"]
+                row["Participant B score"] = result["b_sets"]
+            else:
+                row["Winner"] = result["winner"]
+                row["Participant A score"] = result["b_sets"]
+                row["Participant B score"] = result["a_sets"]
+
+            break
 
     return match_rows
 
@@ -601,13 +718,14 @@ def main() -> int:
     parser.add_argument("--tournament-id", default=DEFAULT_TOURNAMENT_ID, help="ID torneo ATP, usato per il PDF fallback")
     parser.add_argument("--watch", action="store_true", help="Resta in esecuzione e aggiorna il CSV a intervalli regolari")
     parser.add_argument("--interval", type=int, default=1800, help="Intervallo in secondi in modalità --watch")
+    parser.add_argument("--results-page", default=DEFAULT_RESULTS_PAGE, help="URL della pagina ATP Results")
     args = parser.parse_args()
 
     output_path = Path(args.output).expanduser().resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     if not args.watch:
-        run_once(output_path, args.draw_page, args.tournament_id)
+        run_once(output_path, args.draw_page, args.tournament_id, args.results_page)
         return 0
 
     while True:
