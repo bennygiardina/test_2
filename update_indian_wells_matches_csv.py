@@ -583,12 +583,33 @@ def set_wins_from_scoreline(scoreline: str) -> tuple[int, int]:
     return a_sets, b_sets
 
 def normalize_name_for_matching(name: str) -> str:
-    n = (name or "").lower().strip()
-    n = re.sub(r"\[[^\]]+\]", "", n)
+    n = (name or "").strip().lower()
+    n = re.sub(r"\[[^\]]+\]", "", n)   # toglie [1], [Q], [WC], ecc.
     n = n.replace(".", "")
     n = n.replace(",", "")
-    n = re.sub(r"\s+", " ", n)
-    return n.strip()
+    n = re.sub(r"\s+", " ", n).strip()
+
+    if not n:
+        return ""
+
+    tokens = n.split()
+
+    # Caso draw: "j sinner" oppure "g mpetshi perricard"
+    if len(tokens) >= 2 and len(tokens[0]) == 1:
+        initial = tokens[0]
+        surname = " ".join(tokens[1:])
+        return f"{surname} {initial}".strip()
+
+    # Caso east-asian nel draw: "sakamoto r"
+    if len(tokens) >= 2 and len(tokens[-1]) == 1:
+        initial = tokens[-1]
+        surname = " ".join(tokens[:-1])
+        return f"{surname} {initial}".strip()
+
+    # Caso results ATP: "jannik sinner" / "giovanni mpetshi perricard"
+    initial = tokens[0][0]
+    surname = " ".join(tokens[1:]) if len(tokens) > 1 else tokens[0]
+    return f"{surname} {initial}".strip()
 
 def fetch_results_page(results_page_url: str) -> str:
     resp = requests.get(results_page_url, timeout=30)
@@ -678,21 +699,14 @@ def parse_results_page(html: str) -> list[dict]:
                 a_sets, b_sets = set_wins_from_scoreline(scoreline)
 
                 # formatta i nomi come nel tuo CSV
-                p1_name = format_name(player1, entry_status=player1_tag if player1_tag in {"Q", "WC", "LL", "PR"} else "", seed=player1_tag if player1_tag.isdigit() else "")
-                p2_name = format_name(player2, entry_status=player2_tag if player2_tag in {"Q", "WC", "LL", "PR"} else "", seed=player2_tag if player2_tag.isdigit() else "")
-
-                winner_display = ""
-                if normalize_name_for_matching(player1) == normalize_name_for_matching(winner_name):
-                    winner_display = p1_name
-                elif normalize_name_for_matching(player2) == normalize_name_for_matching(winner_name):
-                    winner_display = p2_name
-
                 completed_matches.append(
                     {
                         "round": current_round,
-                        "player_a": p1_name,
-                        "player_b": p2_name,
-                        "winner": winner_display,
+                        "player_a": player1,
+                        "player_b": player2,
+                        "player_a_tag": player1_tag,
+                        "player_b_tag": player2_tag,
+                        "winner": winner_name,
                         "a_sets": a_sets,
                         "b_sets": b_sets,
                     }
@@ -714,6 +728,7 @@ def apply_results_to_match_rows(match_rows: list[dict], completed_matches: list[
         for result in completed_matches:
             res_a = normalize_name_for_matching(result["player_a"])
             res_b = normalize_name_for_matching(result["player_b"])
+            res_w = normalize_name_for_matching(result["winner"])
             res_round = result["round"]
 
             if row_round != res_round:
@@ -722,14 +737,19 @@ def apply_results_to_match_rows(match_rows: list[dict], completed_matches: list[
             if {row_a, row_b} != {res_a, res_b}:
                 continue
 
+            # orientamento score
             if row_a == res_a and row_b == res_b:
-                row["Winner"] = result["winner"]
                 row["Participant A score"] = result["a_sets"]
                 row["Participant B score"] = result["b_sets"]
             else:
-                row["Winner"] = result["winner"]
                 row["Participant A score"] = result["b_sets"]
                 row["Participant B score"] = result["a_sets"]
+
+            # winner = usa il nome già presente nel draw/csv
+            if row_a == res_w:
+                row["Winner"] = row["Player A"]
+            elif row_b == res_w:
+                row["Winner"] = row["Player B"]
 
             break
 
