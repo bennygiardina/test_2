@@ -28,7 +28,7 @@ jobs:
 
       - name: Run script
         run: |
-          python update_asuncion_matches_csv.py --output data/asuncion_wells_matches.csv
+          python update_asuncion_matches_csv.py --output data/asuncion_matches.csv
 
       - name: Commit updated CSV
         run: |
