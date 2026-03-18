@@ -37,7 +37,7 @@ from bs4 import BeautifulSoup
 
 ATP_URL_DEFAULT = "https://www.atptour.com/en/scores/current/indian-wells/404/draws"
 MATCHES_CSV_URL_DEFAULT = (
-    "https://raw.githubusercontent.com/bennygiardina/test/refs/heads/main/data/indian_wells_matches.csv"
+    "https://raw.githubusercontent.com/bennygiardina/test_2/refs/heads/main/data/indian_wells_matches.csv"
 )
 FLAGS_CSV_URL_DEFAULT = (
     "https://raw.githubusercontent.com/bennygiardina/test/refs/heads/main/NOC_flag.csv"
