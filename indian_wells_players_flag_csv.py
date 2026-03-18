@@ -46,7 +46,7 @@ OUTPUT_CSV_DEFAULT = "indian_wells_players_flag.csv"
 
 SPECIAL_INVERTED_COUNTRIES = {"JPN", "CHN", "KOR"}
 EXACT_STANDARD_EXCEPTIONS = {("naomi", "osaka")}
-IGNORED_PLAYER_VALUES = {"", "bye", "nan", "none", "null"}
+IGNORED_PLAYER_VALUES = {"", "bye", "nan", "none", "null", "tbd", "unknown"}
 
 
 @dataclass(frozen=True)
@@ -90,10 +90,15 @@ def strip_bracket_suffixes(player_label: str) -> str:
 def looks_like_real_player(player_label: object) -> bool:
     if player_label is None:
         return False
-    text = normalize_spaces(str(player_label))
+
+    text = canonicalize_text(str(player_label))
     if not text:
         return False
-    return text.casefold() not in IGNORED_PLAYER_VALUES
+
+    if text in IGNORED_PLAYER_VALUES:
+        return False
+
+    return not any(token in text for token in {"tbd", "bye", "unknown"})
 
 
 def fetch_text(url: str, session: requests.Session, timeout: int = 30) -> str:
@@ -130,6 +135,8 @@ def extract_players_from_atp_html(html_text: str) -> List[AtpPlayer]:
         last = normalize_name_text(last)
         country_code = normalize_name_text(country_code).upper()
         if not first or not last or not country_code:
+            return
+        if not looks_like_real_player(first) or not looks_like_real_player(last):
             return
         player = AtpPlayer(first=first, last=last, country_code=country_code)
         players.setdefault(player.key(), player)
@@ -328,3 +335,4 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
