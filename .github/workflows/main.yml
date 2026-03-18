@@ -1,4 +1,4 @@
-name: Update Indian Wells CSV
+name: Update Asuncion CSV
 
 on:
   workflow_dispatch:
@@ -28,7 +28,7 @@ jobs:
 
       - name: Run script
         run: |
-          python update_indian_wells_matches_csv.py --output data/indian_wells_matches.csv
+          python update_asuncion_matches_csv.py --output data/asuncion_wells_matches.csv
 
       - name: Commit updated CSV
         run: |
