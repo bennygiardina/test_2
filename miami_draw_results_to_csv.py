@@ -106,17 +106,21 @@ def extract_country_code(stats_item: Tag) -> Optional[str]:
     if not country_div:
         return None
 
-    # 1) prova a leggere direttamente il testo visibile del country block
+    # 1) prova dal testo visibile
     country_text = normalize_space(country_div.get_text(" ", strip=True)).upper()
     match = re.search(r"\b(JPN|CHN|KOR|TPE|HKG)\b", country_text)
     if match:
         return match.group(1)
 
-    # 2) prova dall'href del link, cercando il codice ovunque e non solo alla fine
+    # 2) prova dall'href, ma cercando il codice ovunque
+    href = ""
     a = country_div.select_one("a[href]")
-    href = a.get("href", "") if a else country_div.get("href", "") or ""
-    href = href.upper()
+    if a:
+        href = a.get("href", "") or ""
+    else:
+        href = country_div.get("href", "") or ""
 
+    href = href.upper()
     match = re.search(r"\b(JPN|CHN|KOR|TPE|HKG)\b", href)
     if match:
         return match.group(1)
@@ -135,15 +139,13 @@ def invert_name_for_special_country(name: str, country_code: Optional[str]) -> s
     if len(parts) < 2:
         return name
 
-    first_part = parts[0]
-    last_parts = parts[1:]
+    first = parts[0]
+    last = " ".join(parts[1:])
 
-    # caso atteso: "N. Osaka" -> "Osaka N."
-    if first_part.endswith("."):
-        return f"{' '.join(last_parts)} {first_part}"
+    if not first.endswith("."):
+        return name
 
-    # opzionale: se un giorno arrivasse "Naomi Osaka", lo trasformi in "Osaka N."
-    return f"{' '.join(last_parts)} {first_part[0]}."
+    return f"{last} {first}"
 
 
 def build_display_name(stats_item: Tag) -> Optional[str]:
