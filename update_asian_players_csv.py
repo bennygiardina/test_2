@@ -15,14 +15,12 @@ URLS = [
     ("ATP", "KOR", "https://www.atptour.com/en/rankings/singles?rankRange=1-3000&region=KOR"),
     ("ATP", "TPE", "https://www.atptour.com/en/rankings/singles?rankRange=1-3000&region=TPE"),
     ("ATP", "PRK", "https://www.atptour.com/en/rankings/singles?rankRange=1-3000&region=PRK"),
-    ("ATP", "HKG", "https://www.atptour.com/en/rankings/singles?rankRange=1-3000&region=HKG"),
 
     # WTA
     ("WTA", "JPN", "https://www.wtatennis.com/rankings/singles?region=JPN"),
     ("WTA", "CHN", "https://www.wtatennis.com/rankings/singles?region=CHN"),
     ("WTA", "KOR", "https://www.wtatennis.com/rankings/singles?region=KOR"),
     ("WTA", "TPE", "https://www.wtatennis.com/rankings/singles?region=TPE"),
-    ("WTA", "HKG", "https://www.wtatennis.com/rankings/singles?region=HKG"),
     ("WTA", "PRK", "https://www.wtatennis.com/rankings/singles?region=PRK"),
 ]
 
