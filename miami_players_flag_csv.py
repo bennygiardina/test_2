@@ -37,7 +37,7 @@ from bs4 import BeautifulSoup
 
 ATP_URL_DEFAULT = "https://www.atptour.com/en/scores/current/miami/403/draws"
 MATCHES_CSV_URL_DEFAULT = (
-    "https://raw.githubusercontent.com/bennygiardina/test_2/refs/heads/main/data/miami_full_draw.csv"
+    "https://raw.githubusercontent.com/bennygiardina/test_2/refs/heads/main/miami_full_draw.csv"
 )
 FLAGS_CSV_URL_DEFAULT = (
     "https://raw.githubusercontent.com/bennygiardina/test_2/refs/heads/main/NOC_flag.csv"
