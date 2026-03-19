@@ -1,0 +1,39 @@
+name: Update Asian Players CSV
+
+on:
+  schedule:
+    - cron: "0 6 * * *"   # ogni giorno alle 06:00 UTC
+  workflow_dispatch:      # esecuzione manuale
+
+jobs:
+  update-csv:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install requests beautifulsoup4
+
+      - name: Run script
+        run: |
+          python update_asian_players_csv.py
+
+      - name: Commit and push CSV if changed
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git add asian_players.csv
+
+          # Commit solo se ci sono modifiche
+          git diff --cached --quiet || git commit -m "Update asian_players.csv"
+
+          git push
