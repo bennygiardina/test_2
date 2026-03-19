@@ -3,8 +3,7 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from collections import defaultdict
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 import requests
 from bs4 import BeautifulSoup, Tag
@@ -40,7 +39,7 @@ ROUND_NAME_COUNTS = {
 }
 
 SPECIAL_COUNTRY_CODES = {"JPN", "CHN", "KOR", "TPE", "HKG"}
-SPECIAL_NAME_EXCEPTION = {"n. osaka", "naomi osaka"}
+SPECIAL_NAME_EXCEPTION = {"n. osaka"}
 
 INLINE_LABEL_PATTERN = re.compile(r"^(.*?)(?:\s*\((\d{1,2}|Q|WC|LL|Alt|PR)\))?$", re.I)
 
@@ -102,76 +101,44 @@ def clean_name_and_label(raw_name_text: str) -> Tuple[str, Optional[str]]:
     return base_name, label
 
 
-def build_special_name_index(draw_html: str) -> Dict[str, List[Tuple[Optional[str], str, str]]]:
-    """
-    Costruisce un indice dai dati del dropdown ATP del draw.
+def extract_country_code(stats_item: Tag) -> Optional[str]:
+    country_div = stats_item.select_one("div.country")
+    if not country_div:
+        return None
 
-    Chiave:
-        cognome in lowercase
-    Valore:
-        lista di tuple (iniziale_nome_lower_o_None, first_name_originale, country_code)
-        filtrata ai soli country code speciali.
-    """
-    soup = BeautifulSoup(draw_html, "html.parser")
-    index: Dict[str, List[Tuple[Optional[str], str, str]]] = defaultdict(list)
+    href = ""
+    a = country_div.select_one("a[href]")
+    if a:
+        href = a.get("href", "") or ""
+    else:
+        href = country_div.get("href", "") or ""
 
-    for option in soup.select("div.atp_player-draw option[data-last][data-country-code]"):
-        last = normalize_space(option.get("data-last", ""))
-        first = normalize_space(option.get("data-first", ""))
-        country_code = normalize_space(option.get("data-country-code", "")).upper()
+    match = re.search(r"([A-Z]{3})(?:/)?$", href)
+    if match:
+        return match.group(1)
 
-        if not last or country_code not in SPECIAL_COUNTRY_CODES:
-            continue
-
-        first_initial = first[:1].lower() if first else None
-        surname_key = last.lower()
-        entry = (first_initial, first, country_code)
-
-        if entry not in index[surname_key]:
-            index[surname_key].append(entry)
-
-    return dict(index)
+    return None
 
 
-def invert_name_from_special_index(
-    name: str,
-    special_index: Dict[str, List[Tuple[Optional[str], str, str]]],
-) -> str:
+def invert_name_for_special_country(name: str, country_code: Optional[str]) -> str:
+    if not country_code or country_code not in SPECIAL_COUNTRY_CODES:
+        return name
+
     if name.strip().lower() in SPECIAL_NAME_EXCEPTION:
         return name
 
     parts = name.split()
-    if len(parts) < 2:
+    if len(parts) != 2:
         return name
 
-    first_token = parts[0]
-    surname = parts[-1]
-    middle_tokens = parts[1:-1]
-
-    if not first_token.endswith("."):
+    first, last = parts
+    if not first.endswith("."):
         return name
 
-    surname_key = surname.lower()
-    candidates = special_index.get(surname_key, [])
-    if not candidates:
-        return name
-
-    if len(candidates) == 1:
-        return " ".join([surname, first_token, *middle_tokens]).strip()
-
-    first_initial = first_token[0].lower() if first_token else None
-    initial_matches = [candidate for candidate in candidates if candidate[0] == first_initial]
-
-    if len(initial_matches) == 1:
-        return " ".join([surname, first_token, *middle_tokens]).strip()
-
-    return name
+    return f"{last} {first}"
 
 
-def build_display_name(
-    stats_item: Tag,
-    special_index: Dict[str, List[Tuple[Optional[str], str, str]]],
-) -> Optional[str]:
+def build_display_name(stats_item: Tag) -> Optional[str]:
     name_div = stats_item.select_one("div.name")
     if not name_div:
         return None
@@ -189,7 +156,8 @@ def build_display_name(
     if normalized in {"bye", "Qualifier", "Qualifier / Lucky Loser", "Lucky Loser"}:
         return normalized
 
-    normalized = invert_name_from_special_index(normalized, special_index)
+    country_code = extract_country_code(stats_item)
+    normalized = invert_name_for_special_country(normalized, country_code)
 
     if inline_label:
         normalized = f"{normalized} [{inline_label}]"
@@ -277,16 +245,13 @@ def stats_item_has_winner_marker(stats_item: Tag) -> bool:
     )
 
 
-def build_player_row(
-    stats_item: Tag,
-    special_index: Dict[str, List[Tuple[Optional[str], str, str]]],
-) -> Optional[PlayerRow]:
+def build_player_row(stats_item: Tag) -> Optional[PlayerRow]:
     name_div = stats_item.select_one("div.name")
     if not name_div:
         return None
 
     raw_name_text = normalize_space(name_div.get_text(" ", strip=True))
-    display_name = build_display_name(stats_item, special_index)
+    display_name = build_display_name(stats_item)
     if display_name is None:
         return None
 
@@ -302,11 +267,7 @@ def build_player_row(
     )
 
 
-def extract_round_player_rows(
-    draw_html: str,
-    round_code: str,
-    special_index: Dict[str, List[Tuple[Optional[str], str, str]]],
-) -> List[PlayerRow]:
+def extract_round_player_rows(draw_html: str, round_code: str) -> List[PlayerRow]:
     expected_count = ROUND_NAME_COUNTS[round_code]
 
     try:
@@ -319,7 +280,7 @@ def extract_round_player_rows(
     rows: List[PlayerRow] = []
 
     for stats_item in soup.select("div.stats-item"):
-        player_row = build_player_row(stats_item, special_index)
+        player_row = build_player_row(stats_item)
         if player_row is None:
             continue
 
@@ -529,12 +490,8 @@ def build_match_row_from_pair(round_code: str, player_a: PlayerRow, player_b: Pl
     )
 
 
-def build_round_rows_from_draw(
-    draw_html: str,
-    round_code: str,
-    special_index: Dict[str, List[Tuple[Optional[str], str, str]]],
-) -> List[MatchRow]:
-    player_rows = extract_round_player_rows(draw_html, round_code, special_index)
+def build_round_rows_from_draw(draw_html: str, round_code: str) -> List[MatchRow]:
+    player_rows = extract_round_player_rows(draw_html, round_code)
 
     expected_matches = ROUND_NAME_COUNTS[round_code] // 2
     if not player_rows:
@@ -611,13 +568,12 @@ def propagate_winners_to_next_round(round_rows_map: dict[str, List[MatchRow]], r
 
 def build_full_tournament_csv_from_draw(draw_url: str, output_csv: str) -> None:
     draw_html = fetch_html(draw_url)
-    special_index = build_special_name_index(draw_html)
     first_round_code = detect_first_round_code(draw_html)
     rounds = available_round_codes(draw_html, first_round_code)
 
     round_rows_map: dict[str, List[MatchRow]] = {}
     for round_code in rounds:
-        round_rows_map[round_code] = build_round_rows_from_draw(draw_html, round_code, special_index)
+        round_rows_map[round_code] = build_round_rows_from_draw(draw_html, round_code)
 
     propagate_winners_to_next_round(round_rows_map, rounds)
 
@@ -644,4 +600,5 @@ if __name__ == "__main__":
     print("CSV creato:", OUTPUT_CSV)
     print("File exists:", OUTPUT_CSV.exists())
     print("=== DEBUG END ===")
+
 
