@@ -32,7 +32,7 @@ jobs:
 
       - name: Run script
         run: |
-          python atp_draw_results_to_csv.py
+          python miami_draw_results_to_csv.py
           echo "----- AFTER SCRIPT -----"
           ls -la
           find . -maxdepth 2 -type f | sort
