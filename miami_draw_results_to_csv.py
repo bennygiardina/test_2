@@ -39,7 +39,7 @@ ROUND_NAME_COUNTS = {
 }
 
 SPECIAL_COUNTRY_CODES = {"JPN", "CHN", "KOR", "TPE", "HKG"}
-SPECIAL_NAME_EXCEPTION = {"n. osaka", "naomi osaka"}
+SPECIAL_NAME_EXCEPTION = {"n. osaka"}
 
 INLINE_LABEL_PATTERN = re.compile(r"^(.*?)(?:\s*\((\d{1,2}|Q|WC|LL|Alt|PR)\))?$", re.I)
 
@@ -106,13 +106,6 @@ def extract_country_code(stats_item: Tag) -> Optional[str]:
     if not country_div:
         return None
 
-    # 1) prova dal testo visibile
-    country_text = normalize_space(country_div.get_text(" ", strip=True)).upper()
-    match = re.search(r"\b(JPN|CHN|KOR|TPE|HKG)\b", country_text)
-    if match:
-        return match.group(1)
-
-    # 2) prova dall'href, ma cercando il codice ovunque
     href = ""
     a = country_div.select_one("a[href]")
     if a:
@@ -120,8 +113,7 @@ def extract_country_code(stats_item: Tag) -> Optional[str]:
     else:
         href = country_div.get("href", "") or ""
 
-    href = href.upper()
-    match = re.search(r"\b(JPN|CHN|KOR|TPE|HKG)\b", href)
+    match = re.search(r"([A-Z]{3})(?:/)?$", href)
     if match:
         return match.group(1)
 
@@ -136,12 +128,10 @@ def invert_name_for_special_country(name: str, country_code: Optional[str]) -> s
         return name
 
     parts = name.split()
-    if len(parts) < 2:
+    if len(parts) != 2:
         return name
 
-    first = parts[0]
-    last = " ".join(parts[1:])
-
+    first, last = parts
     if not first.endswith("."):
         return name
 
@@ -610,4 +600,5 @@ if __name__ == "__main__":
     print("CSV creato:", OUTPUT_CSV)
     print("File exists:", OUTPUT_CSV.exists())
     print("=== DEBUG END ===")
+
 
