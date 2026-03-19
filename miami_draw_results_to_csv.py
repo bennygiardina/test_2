@@ -547,7 +547,7 @@ def build_full_tournament_csv_from_draw(draw_url: str, output_csv: str) -> None:
 
 
 if __name__ == "__main__":
-    DRAW_URL = "https://www.atptour.com/en/scores/current/miami/403/draws/draws"
+    DRAW_URL = "https://www.atptour.com/en/scores/current/miami/403/draws"
 
     BASE_DIR = Path(__file__).resolve().parent
     OUTPUT_CSV = BASE_DIR / "miami_full_draw.csv"
