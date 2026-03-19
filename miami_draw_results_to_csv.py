@@ -548,15 +548,38 @@ def export_csv(rows: List[MatchRow], output_path: str) -> None:
             ])
 
 
+def propagate_winners_to_next_round(round_rows_map: dict[str, List[MatchRow]], rounds: List[str]) -> None:
+    for prev_round_code, next_round_code in zip(rounds, rounds[1:]):
+        prev_rows = round_rows_map.get(prev_round_code, [])
+        next_rows = round_rows_map.get(next_round_code, [])
+
+        if not prev_rows or not next_rows:
+            continue
+
+        propagated_winners = [row.winner for row in prev_rows]
+
+        for match_idx, next_row in enumerate(next_rows):
+            winner_a_idx = match_idx * 2
+            winner_b_idx = winner_a_idx + 1
+
+            next_row.player_a = propagated_winners[winner_a_idx] if winner_a_idx < len(propagated_winners) else ""
+            next_row.player_b = propagated_winners[winner_b_idx] if winner_b_idx < len(propagated_winners) else ""
+
+
 def build_full_tournament_csv_from_draw(draw_url: str, output_csv: str) -> None:
     draw_html = fetch_html(draw_url)
     first_round_code = detect_first_round_code(draw_html)
     rounds = available_round_codes(draw_html, first_round_code)
 
+    round_rows_map: dict[str, List[MatchRow]] = {}
+    for round_code in rounds:
+        round_rows_map[round_code] = build_round_rows_from_draw(draw_html, round_code)
+
+    propagate_winners_to_next_round(round_rows_map, rounds)
+
     all_rows: List[MatchRow] = []
     for round_code in rounds:
-        round_rows = build_round_rows_from_draw(draw_html, round_code)
-        all_rows.extend(round_rows)
+        all_rows.extend(round_rows_map[round_code])
 
     export_csv(all_rows, output_csv)
 
