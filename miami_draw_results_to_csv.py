@@ -1,6 +1,7 @@
 import csv
 import os
 import re
+from io import StringIO
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -38,8 +39,8 @@ ROUND_NAME_COUNTS = {
     "F": 2,
 }
 
-SPECIAL_COUNTRY_CODES = {"JPN", "CHN", "KOR", "TPE", "HKG"}
-SPECIAL_NAME_EXCEPTION = {"n. osaka"}
+ASIAN_PLAYERS_CSV_URL = "https://raw.githubusercontent.com/bennygiardina/test_2/refs/heads/main/asian_players.csv"
+SPECIAL_NAME_EXCEPTION = {"n. osaka", "naomi osaka"}
 
 INLINE_LABEL_PATTERN = re.compile(r"^(.*?)(?:\s*\((\d{1,2}|Q|WC|LL|Alt|PR)\))?$", re.I)
 
@@ -101,41 +102,61 @@ def clean_name_and_label(raw_name_text: str) -> Tuple[str, Optional[str]]:
     return base_name, label
 
 
-def extract_country_code(stats_item: Tag) -> Optional[str]:
-    country_div = stats_item.select_one("div.country")
-    if not country_div:
-        return None
-
-    href = ""
-    a = country_div.select_one("a[href]")
-    if a:
-        href = a.get("href", "") or ""
-    else:
-        href = country_div.get("href", "") or ""
-
-    match = re.search(r"([A-Z]{3})(?:/)?$", href)
-    if match:
-        return match.group(1)
-
-    return None
+_asian_players_cache: Optional[set[tuple[str, str]]] = None
 
 
-def invert_name_for_special_country(name: str, country_code: Optional[str]) -> str:
-    if not country_code or country_code not in SPECIAL_COUNTRY_CODES:
-        return name
+def load_asian_players_from_csv() -> set[tuple[str, str]]:
+    response = requests.get(ASIAN_PLAYERS_CSV_URL, headers=HEADERS, timeout=30)
+    response.raise_for_status()
 
+    reader = csv.DictReader(StringIO(response.text))
+    players: set[tuple[str, str]] = set()
+
+    for row in reader:
+        if row.get("exception", "").strip() == "1":
+            continue
+
+        surname = normalize_space(row.get("last_name", "")).lower()
+        first_initial = normalize_space(row.get("first_initial", "")).lower()
+
+        if surname and first_initial:
+            players.add((surname, first_initial))
+
+    return players
+
+
+def get_asian_players() -> set[tuple[str, str]]:
+    global _asian_players_cache
+    if _asian_players_cache is None:
+        _asian_players_cache = load_asian_players_from_csv()
+    return _asian_players_cache
+
+
+def invert_name_from_csv(name: str) -> str:
     if name.strip().lower() in SPECIAL_NAME_EXCEPTION:
         return name
 
     parts = name.split()
-    if len(parts) != 2:
+    if len(parts) < 2:
         return name
 
-    first, last = parts
+    first = parts[0]
+    last = parts[-1]
+    middle = parts[1:-1]
+
     if not first.endswith("."):
         return name
 
-    return f"{last} {first}"
+    initial = first[0].lower()
+    surname = last.lower()
+
+    if (surname, initial) not in get_asian_players():
+        return name
+
+    reordered = [last, first]
+    if middle:
+        reordered.extend(middle)
+    return " ".join(reordered)
 
 
 def build_display_name(stats_item: Tag) -> Optional[str]:
@@ -156,8 +177,7 @@ def build_display_name(stats_item: Tag) -> Optional[str]:
     if normalized in {"bye", "Qualifier", "Qualifier / Lucky Loser", "Lucky Loser"}:
         return normalized
 
-    country_code = extract_country_code(stats_item)
-    normalized = invert_name_for_special_country(normalized, country_code)
+    normalized = invert_name_from_csv(normalized)
 
     if inline_label:
         normalized = f"{normalized} [{inline_label}]"
