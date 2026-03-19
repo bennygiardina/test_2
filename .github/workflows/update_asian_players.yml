@@ -2,8 +2,11 @@ name: Update Asian Players CSV
 
 on:
   schedule:
-    - cron: "0 6 * * *"   # ogni giorno alle 06:00 UTC
-  workflow_dispatch:      # esecuzione manuale
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   update-csv:
@@ -12,6 +15,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
+        with:
+          persist-credentials: true
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -28,12 +33,12 @@ jobs:
 
       - name: Commit and push CSV if changed
         run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add asian_players.csv
 
-          # Commit solo se ci sono modifiche
-          git diff --cached --quiet || git commit -m "Update asian_players.csv"
-
-          git push
+          if ! git diff --cached --quiet; then
+            git commit -m "Update asian_players.csv"
+            git push
+          fi
