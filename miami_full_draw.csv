@@ -36,7 +36,7 @@ R128,M. Arnaldi,A. Shevchenko,,,
 R128,G. Diallo,Wu Y. [WC],,,
 R128,bye,U. Humbert [31],U. Humbert [31],,
 R128,F. Cerundolo [18],bye,F. Cerundolo [18],,
-R128,V. Royer,T. Tirante [LL],,,
+R128,V. Royer,T. Tirante [LL],T. Tirante [LL],1,2
 R128,A. Kovacevic,Sakamoto R. [WC],Sakamoto R. [WC],1,2
 R128,bye,D. Medvedev [9],D. Medvedev [9],,
 R128,A. Davidovich Fokina [16],bye,A. Davidovich Fokina [16],,
@@ -48,7 +48,7 @@ R128,M. Cilic,A. Popyrin,M. Cilic,2,0
 R128,M. Damm [WC],J. Fearnley,M. Damm [WC],1,(rit.) 0
 R128,bye,A. Zverev [3],A. Zverev [3],,
 R128,F. Auger-Aliassime [7],bye,F. Auger-Aliassime [7],,
-R128,C. O'Connell [Q],M. Fucsovics,,,
+R128,C. O'Connell [Q],M. Fucsovics,M. Fucsovics,0,2
 R128,T. Atmane,D. Altmaier,T. Atmane,2,0
 R128,bye,A. Rinderknech [26],A. Rinderknech [26],,
 R128,F. Tiafoe [19],bye,F. Tiafoe [19],,
@@ -81,13 +81,13 @@ R64,A. Fils [28],D. Blanch [WC],,,
 R64,S. Tsitsipas,A. de Minaur [5],,,
 R64,B. Shelton [8],,,,
 R64,,U. Humbert [31],,,
-R64,F. Cerundolo [18],,,,
+R64,F. Cerundolo [18],T. Tirante [LL],,,
 R64,Sakamoto R. [WC],D. Medvedev [9],,,
 R64,A. Davidovich Fokina [16],Q. Halys,,,
 R64,K. Majchrzak,L. Tien [20],,,
 R64,B. Nakashima [27],M. Cilic,,,
 R64,M. Damm [WC],A. Zverev [3],,,
-R64,F. Auger-Aliassime [7],,,,
+R64,F. Auger-Aliassime [7],M. Fucsovics,,,
 R64,T. Atmane,A. Rinderknech [26],,,
 R64,F. Tiafoe [19],,,,
 R64,,J. Mensik [12],,,
