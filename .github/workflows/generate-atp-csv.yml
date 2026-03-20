@@ -2,6 +2,8 @@ name: Generate ATP Full Draw CSV
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "*/5 * * * *"
 
 jobs:
   generate-csv:
