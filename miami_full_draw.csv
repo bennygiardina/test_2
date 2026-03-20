@@ -53,7 +53,7 @@ R128,T. Atmane,D. Altmaier,T. Atmane,2,0
 R128,bye,A. Rinderknech [26],A. Rinderknech [26],,
 R128,F. Tiafoe [19],bye,F. Tiafoe [19],,
 R128,A. Cazaux,T. Barrios Vera [Q],,,
-R128,A. Walton [Q],S. Baez,,,
+R128,A. Walton [Q],S. Baez,A. Walton [Q],2,0
 R128,bye,J. Mensik [12],J. Mensik [12],,
 R128,A. Rublev [15],bye,A. Rublev [15],,
 R128,A. Tabilo,F. Comesana,A. Tabilo,2,0
@@ -90,7 +90,7 @@ R64,M. Damm [WC],A. Zverev [3],,,
 R64,F. Auger-Aliassime [7],M. Fucsovics,,,
 R64,T. Atmane,A. Rinderknech [26],,,
 R64,F. Tiafoe [19],,,,
-R64,,J. Mensik [12],,,
+R64,A. Walton [Q],J. Mensik [12],,,
 R64,A. Rublev [15],A. Tabilo,,,
 R64,A. Michelsen,C. Norrie [23],,,
 R64,C. Moutet [30],T. Machac,,,
