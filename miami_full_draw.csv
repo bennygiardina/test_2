@@ -72,7 +72,7 @@ R64,M. Kouame [WC],J. Lehecka [21],J. Lehecka [21],0,2
 R64,J. Draper [25],R. Opelka,R. Opelka,0,2
 R64,B. van de Zandschulp,T. Fritz [6],T. Fritz [6],1,2
 R64,A. Vukic [LL],R. Jodar [Q],R. Jodar [Q],0,2
-R64,Z. Bergs,T. Etcheverry [29],,,
+R64,Z. Bergs,T. Etcheverry [29],T. Etcheverry [29],0,2
 R64,T. Paul [22],A. Mannarino,T. Paul [22],2,1
 R64,R. Collignon,F. Cobolli [13],R. Collignon,2,0
 R64,A. Bublik [10],M. Berrettini,M. Berrettini,0,2
@@ -83,7 +83,7 @@ R64,B. Shelton [8],A. Shevchenko,,,
 R64,G. Diallo,U. Humbert [31],,,
 R64,F. Cerundolo [18],T. Tirante [LL],,,
 R64,Sakamoto R. [WC],D. Medvedev [9],,,
-R64,A. Davidovich Fokina [16],Q. Halys,,,
+R64,A. Davidovich Fokina [16],Q. Halys,Q. Halys,0,2
 R64,K. Majchrzak,L. Tien [20],K. Majchrzak,2,1
 R64,B. Nakashima [27],M. Cilic,,,
 R64,M. Damm [WC],A. Zverev [3],,,
@@ -99,13 +99,13 @@ R32,C. Alcaraz [1],S. Korda [32],,,
 R32,M. Landaluce [Q],K. Khachanov [14],,,
 R32,E. Quinn,J. Lehecka [21],,,
 R32,R. Opelka,T. Fritz [6],,,
-R32,R. Jodar [Q],,,,
+R32,R. Jodar [Q],T. Etcheverry [29],,,
 R32,T. Paul [22],R. Collignon,,,
 R32,M. Berrettini,V. Vacherot [24],,,
 R32,A. Fils [28],S. Tsitsipas,,,
 R32,,,,,
 R32,,,,,
-R32,,K. Majchrzak,,,
+R32,Q. Halys,K. Majchrzak,,,
 R32,,,,,
 R32,,,,,
 R32,,,,,
