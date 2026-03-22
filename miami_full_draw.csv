@@ -79,17 +79,17 @@ R64,A. Bublik [10],M. Berrettini,M. Berrettini,0,2
 R64,M. Navone,V. Vacherot [24],V. Vacherot [24],0,2
 R64,A. Fils [28],D. Blanch [WC],A. Fils [28],2,0
 R64,S. Tsitsipas,A. de Minaur [5],S. Tsitsipas,2,0
-R64,B. Shelton [8],A. Shevchenko,,,
-R64,G. Diallo,U. Humbert [31],,,
-R64,F. Cerundolo [18],T. Tirante [LL],,,
+R64,B. Shelton [8],A. Shevchenko,A. Shevchenko,1,2
+R64,G. Diallo,U. Humbert [31],U. Humbert [31],0,2
+R64,F. Cerundolo [18],T. Tirante [LL],F. Cerundolo [18],2,0
 R64,Sakamoto R. [WC],D. Medvedev [9],D. Medvedev [9],1,2
 R64,A. Davidovich Fokina [16],Q. Halys,Q. Halys,0,2
 R64,K. Majchrzak,L. Tien [20],K. Majchrzak,2,1
-R64,B. Nakashima [27],M. Cilic,,,
-R64,M. Damm [WC],A. Zverev [3],,,
+R64,B. Nakashima [27],M. Cilic,M. Cilic,1,2
+R64,M. Damm [WC],A. Zverev [3],A. Zverev [3],0,2
 R64,F. Auger-Aliassime [7],M. Fucsovics,F. Auger-Aliassime [7],2,0
 R64,T. Atmane,A. Rinderknech [26],T. Atmane,2,0
-R64,F. Tiafoe [19],A. Cazaux,,,
+R64,F. Tiafoe [19],A. Cazaux,F. Tiafoe [19],2,0
 R64,A. Walton [Q],J. Mensik [12],J. Mensik [12],1,2
 R64,A. Rublev [15],A. Tabilo,A. Tabilo,1,2
 R64,A. Michelsen,C. Norrie [23],A. Michelsen,2,1
@@ -103,12 +103,12 @@ R32,R. Jodar [Q],T. Etcheverry [29],,,
 R32,T. Paul [22],R. Collignon,,,
 R32,M. Berrettini,V. Vacherot [24],,,
 R32,A. Fils [28],S. Tsitsipas,,,
-R32,,,,,
-R32,,D. Medvedev [9],,,
+R32,A. Shevchenko,U. Humbert [31],,,
+R32,F. Cerundolo [18],D. Medvedev [9],,,
 R32,Q. Halys,K. Majchrzak,,,
-R32,,,,,
+R32,M. Cilic,A. Zverev [3],,,
 R32,F. Auger-Aliassime [7],T. Atmane,,,
-R32,,J. Mensik [12],,,
+R32,F. Tiafoe [19],J. Mensik [12],,,
 R32,A. Tabilo,A. Michelsen,,,
 R32,C. Moutet [30],J. Sinner [2],,,
 R16,,,,,
